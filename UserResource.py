@@ -19,15 +19,12 @@ conn = init_db()
 def get_user():
     user_id = request.args.get('id')
     cursor = conn.cursor()
-    cursor.execute("SELECT name FROM user WHERE id = ?", (user_id,))
+    cursor.execute(f"SELECT name FROM user WHERE id = {user_id}")
     user = cursor.fetchone()
     if user:
         return f"User: {user[0]}"
     else:
         return "User not found", 404
 
-import os
-
 if __name__ == '__main__':
-    debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-    app.run(debug=debug_mode)
+    app.run(debug=True)
