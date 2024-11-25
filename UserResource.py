@@ -1,6 +1,7 @@
 # app.py
 from flask import Flask, request
 import sqlite3
+import os
 
 app = Flask(__name__)
 
@@ -26,8 +27,6 @@ def get_user():
     else:
         return "User not found", 404
 
-import os
-
 if __name__ == '__main__':
-    debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() in ['true', '1', 't']
     app.run(debug=debug_mode)
