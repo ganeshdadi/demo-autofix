@@ -8,34 +8,45 @@ OUTPUT_DIR = "jsonl_output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def extract_java_methods(file_path):
+    """Robustly extract methods from a Java file by bracket matching."""
     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-        content = f.read()
+        lines = f.readlines()
 
+    content = ''.join(lines)
+
+    # Find class name
     class_match = re.search(r'\bclass\s+(\w+)', content)
     class_name = class_match.group(1) if class_match else "UnknownClass"
 
-    method_pattern = re.finditer(
-        r'((public|private|protected|static|\s)+[\w\<\>]+\s+(\w+)\s*[^]*\s*\{)',
-        content
+    # Find method signatures using a regex that's flexible with annotations & generics
+    method_pattern = re.compile(
+        r'(public|private|protected)?\s*(static)?\s*[\w\<\>]+\s+\w+\s*[^)]*\s*\{',
+        re.MULTILINE
     )
 
-    chunks = []
-    for match in method_pattern:
-        method_start = match.start()
-        method_name = match.group(3)
+    matches = list(method_pattern.finditer(content))
 
+    chunks = []
+    for match in matches:
+        start = match.start()
+
+        # Bracket-based method body extraction
         open_braces = 0
-        method_body = ''
-        found_start = False
-        for c in content[method_start:]:
+        method_body = ""
+        in_method = False
+
+        for c in content[start:]:
             method_body += c
             if c == '{':
                 open_braces += 1
-                found_start = True
+                in_method = True
             elif c == '}':
                 open_braces -= 1
-            if found_start and open_braces == 0:
+            if in_method and open_braces == 0:
                 break
+
+        method_name_match = re.search(r'\b(\w+)\s*', match.group(0))
+        method_name = method_name_match.group(1) if method_name_match else "unknownMethod"
 
         if method_body.strip():
             chunks.append({
@@ -46,6 +57,9 @@ def extract_java_methods(file_path):
                 "name": method_name,
                 "content": method_body.strip()
             })
+
+    if not chunks:
+        print(f"⚠️  No methods found in: {file_path}")
 
     return chunks
 
