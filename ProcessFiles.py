@@ -1,18 +1,21 @@
 import os
 import json
 import re
+from collections import defaultdict
 
-OUTPUT_FILE = "code_and_bdd_chunks.jsonl"
+# Update this with your project root and where to store JSONL files
+ROOT_DIR = "your/code/folder/path"
+OUTPUT_DIR = "jsonl_output"
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def extract_java_methods(file_path):
-    """Extract methods from a Java file."""
     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
 
     class_match = re.search(r'\bclass\s+(\w+)', content)
     class_name = class_match.group(1) if class_match else "UnknownClass"
 
-    # Rough regex to split on method definitions (doesn’t capture method body fully)
     method_pattern = re.finditer(
         r'((public|private|protected|static|\s)+[\w\<\>]+\s+(\w+)\s*.*?\s*\{)',
         content
@@ -23,7 +26,7 @@ def extract_java_methods(file_path):
         method_start = match.start()
         method_name = match.group(3)
 
-        # Try to extract method body (bracket matching logic for better parsing)
+        # Bracket balance for method body
         open_braces = 0
         in_method = False
         method_body = ''
@@ -49,7 +52,6 @@ def extract_java_methods(file_path):
     return chunks
 
 def extract_bdd_scenarios(file_path):
-    """Extract BDD scenarios from a feature file."""
     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
 
@@ -83,21 +85,33 @@ def extract_bdd_scenarios(file_path):
 
     return scenarios
 
-def process_directory(root_dir, output_file_path):
-    with open(output_file_path, "w", encoding="utf-8") as output_file:
-        for dirpath, _, filenames in os.walk(root_dir):
-            for filename in filenames:
-                full_path = os.path.join(dirpath, filename)
-                if filename.endswith(".java"):
-                    java_chunks = extract_java_methods(full_path)
-                    for chunk in java_chunks:
-                        output_file.write(json.dumps(chunk) + "\n")
-                elif filename.endswith(".feature"):
-                    bdd_chunks = extract_bdd_scenarios(full_path)
-                    for chunk in bdd_chunks:
-                        output_file.write(json.dumps(chunk) + "\n")
-                else:
-                    continue  # Ignore other file types
+def get_module_name(full_path):
+    relative_path = os.path.relpath(full_path, ROOT_DIR)
+    parts = relative_path.split(os.sep)
+    return parts[0] if len(parts) > 1 else "root"
 
-# 🔧 Replace with your root folder path
-process_directory("your/code/folder/path", OUTPUT_FILE)
+def process_directory(root_dir):
+    module_chunks = defaultdict(list)
+
+    for dirpath, _, filenames in os.walk(root_dir):
+        for filename in filenames:
+            if filename.endswith(".java") or filename.endswith(".feature"):
+                full_path = os.path.join(dirpath, filename)
+                module_name = get_module_name(full_path)
+
+                if filename.endswith(".java"):
+                    chunks = extract_java_methods(full_path)
+                else:
+                    chunks = extract_bdd_scenarios(full_path)
+
+                module_chunks[module_name].extend(chunks)
+
+    # Write one JSONL file per module
+    for module, chunks in module_chunks.items():
+        out_path = os.path.join(OUTPUT_DIR, f"{module}.jsonl")
+        with open(out_path, "w", encoding="utf-8") as f:
+            for chunk in chunks:
+                f.write(json.dumps(chunk) + "\n")
+
+# Run the processing
+process_directory(ROOT_DIR)
